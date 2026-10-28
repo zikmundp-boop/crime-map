@@ -1,0 +1,8 @@
+{
+  "name": "crime-news-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mapa USA s aktuálními krimi zprávami podle států",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

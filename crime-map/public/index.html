@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Krimi zprávy z USA podle států</title>
+<style>
+  :root {
+    --bg: #edf0f2;
+    --panel: #f8f9fa;
+    --ink: #16202b;
+    --muted: #55616d;
+    --line: #c8d0d7;
+    --accent: #1f4e79;
+    --fresh: #e4572e;
+    --t0: #dce3e9;
+    --t1: #b7cbdb;
+    --t2: #86a9c6;
+    --t3: #4a7ca6;
+    --t4: #1f4e79;
+    --serif: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121a22; --panel: #1a242e; --ink: #e6ebf0; --muted: #98a5b1; --line: #2f3d4a;
+      --accent: #8dbbe3; --fresh: #ff7a4d;
+      --t0: #243342; --t1: #2e4a63; --t2: #3b6285; --t3: #4f83ad; --t4: #78aedb;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; color: var(--ink); font: 16px/1.45 var(--sans); }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--fresh); outline-offset: 2px; }
+
+  header { padding: 28px clamp(16px, 4vw, 48px) 8px; }
+  h1 { margin: 0; font: 600 clamp(1.7rem, 3.4vw, 2.5rem)/1.1 var(--serif); letter-spacing: -.01em; }
+  .status { margin: 8px 0 0; color: var(--muted); font-size: .9rem; }
+
+  main {
+    display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 28px;
+    padding: 16px clamp(16px, 4vw, 48px) 48px; align-items: start;
+  }
+  @media (max-width: 920px) { main { grid-template-columns: 1fr; } }
+
+  /* Mapa: každý stát je jedna dlaždice na mřížce 11 × 8 */
+  .map {
+    display: grid; grid-template-columns: repeat(11, 1fr); grid-auto-rows: 1fr; gap: 5px;
+    max-width: 760px;
+  }
+  .tile {
+    grid-column: var(--c); grid-row: var(--r);
+    aspect-ratio: 1; padding: 0; border: 0; border-radius: 6px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    background: var(--t0); color: var(--ink); font: 600 clamp(.7rem, 1.6vw, 1rem)/1 var(--sans);
+    position: relative; transition: transform .12s;
+  }
+  .tile small { font: 400 clamp(.55rem, 1.1vw, .72rem)/1 var(--sans); opacity: .85; }
+  .tile[data-level="1"] { background: var(--t1); }
+  .tile[data-level="2"] { background: var(--t2); }
+  .tile[data-level="3"] { background: var(--t3); color: #fff; }
+  .tile[data-level="4"] { background: var(--t4); color: #fff; }
+  @media (prefers-color-scheme: dark) {
+    .tile[data-level="3"], .tile[data-level="4"] { color: #0e151c; }
+  }
+  .tile:hover { transform: translateY(-2px); }
+  .tile[aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 1px; }
+  .tile.fresh::after {
+    content: ""; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px;
+    border-radius: 50%; background: var(--fresh);
+  }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 18px 0 0; padding: 0; list-style: none;
+    font-size: .82rem; color: var(--muted); align-items: center; }
+  .legend li { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  .legend .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fresh); }
+
+  /* Panel se zprávami */
+  aside {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto;
+  }
+  @media (max-width: 920px) { aside { position: static; max-height: none; } }
+  aside h2 { margin: 0 0 2px; font: 600 1.5rem/1.2 var(--serif); }
+  aside .sub { margin: 0 0 14px; color: var(--muted); font-size: .85rem; }
+  .back { margin-bottom: 10px; border: 0; background: none; padding: 0; color: var(--accent);
+    font: inherit; font-size: .88rem; cursor: pointer; text-decoration: underline; }
+  ol { list-style: none; margin: 0; padding: 0; }
+  li.story { padding: 12px 0; border-top: 1px solid var(--line); }
+  li.story:first-child { border-top: 0; padding-top: 0; }
+  li.story a { font: 600 1.02rem/1.3 var(--serif); text-decoration: none; }
+  li.story a:hover { text-decoration: underline; }
+  .meta { display: flex; gap: 12px; margin-top: 4px; font-size: .8rem; color: var(--muted); }
+  .meta .st { font-weight: 600; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; font-size: inherit; }
+  .empty { color: var(--muted); }
+  .error { color: var(--fresh); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Krimi zprávy z USA podle států</h1>
+  <p class="status" id="status" role="status">Načítám zprávy…</p>
+</header>
+
+<main>
+  <section aria-label="Mapa států USA">
+    <div class="map" id="map" role="group" aria-label="Státy USA, klikněte na stát pro zprávy"></div>
+    <ul class="legend" aria-label="Legenda">
+      <li><i style="background:var(--t0)"></i>0</li>
+      <li><i style="background:var(--t1)"></i>1–3</li>
+      <li><i style="background:var(--t2)"></i>4–7</li>
+      <li><i style="background:var(--t3)"></i>8–11</li>
+      <li><i style="background:var(--t4)"></i>12 a více zpráv za posledních 48 hodin</li>
+      <li><span class="dot"></span>nová zpráva za poslední 2 hodiny</li>
+    </ul>
+  </section>
+  <aside id="panel" aria-live="polite"></aside>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const REFRESH_MS = 60 * 1000;
+  // [sloupec, řádek] na mřížce 11 × 8
+  const GRID = {
+    AK: [1, 1], ME: [11, 1],
+    VT: [10, 2], NH: [11, 2],
+    WA: [1, 3], ID: [2, 3], MT: [3, 3], ND: [4, 3], MN: [5, 3], IL: [6, 3], WI: [7, 3], MI: [8, 3], NY: [9, 3], RI: [10, 3], MA: [11, 3],
+    OR: [1, 4], NV: [2, 4], WY: [3, 4], SD: [4, 4], IA: [5, 4], IN: [6, 4], OH: [7, 4], PA: [8, 4], NJ: [9, 4], CT: [10, 4],
+    CA: [1, 5], UT: [2, 5], CO: [3, 5], NE: [4, 5], MO: [5, 5], KY: [6, 5], WV: [7, 5], VA: [8, 5], MD: [9, 5], DE: [10, 5],
+    AZ: [2, 6], NM: [3, 6], KS: [4, 6], AR: [5, 6], TN: [6, 6], NC: [7, 6], SC: [8, 6], DC: [9, 6],
+    OK: [4, 7], LA: [5, 7], MS: [6, 7], AL: [7, 7], GA: [8, 7],
+    HI: [1, 8], TX: [4, 8], FL: [9, 8],
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const mapEl = $('map'), panel = $('panel'), statusEl = $('status');
+  let data = null;
+  let selected = location.hash.slice(1).toUpperCase() || null;
+  const tiles = {};
+
+  const level = (n) => (n === 0 ? 0 : n <= 3 ? 1 : n <= 7 ? 2 : n <= 11 ? 3 : 4);
+
+  function ago(iso) {
+    const min = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
+    if (min < 1) return 'právě teď';
+    if (min < 60) return `před ${min} min`;
+    const h = Math.round(min / 60);
+    if (h < 48) return `před ${h} h`;
+    return `před ${Math.round(h / 24)} dny`;
+  }
+  const isFresh = (s) => s.items.some((i) => Date.now() - new Date(i.publishedAt) < 2 * 3600e3);
+
+  function el(tagName, props = {}, ...children) {
+    const e = Object.assign(document.createElement(tagName), props);
+    e.append(...children);
+    return e;
+  }
+
+  function buildMap() {
+    for (const [code, [c, r]] of Object.entries(GRID)) {
+      const b = el('button', { type: 'button', className: 'tile' }, code, el('small'));
+      b.style.setProperty('--c', c);
+      b.style.setProperty('--r', r);
+      b.addEventListener('click', () => select(selected === code ? null : code));
+      tiles[code] = b;
+      mapEl.append(b);
+    }
+  }
+
+  function updateMap() {
+    for (const [code, b] of Object.entries(tiles)) {
+      const s = data.states[code];
+      const n = s ? s.count : 0;
+      b.dataset.level = level(n);
+      b.classList.toggle('fresh', !!s && isFresh(s));
+      b.querySelector('small').textContent = n || '';
+      b.setAttribute('aria-pressed', String(selected === code));
+      b.setAttribute('aria-label', `${s ? s.name : code}: ${n} zpráv`);
+    }
+  }
+
+  function storyItem(item, code) {
+    const a = el('a', { href: item.url, target: '_blank', rel: 'noopener noreferrer' }, item.title);
+    const meta = el('div', { className: 'meta' });
+    if (code) {
+      const st = el('button', { type: 'button', className: 'st' }, code);
+      st.addEventListener('click', () => select(code));
+      meta.append(st);
+    }
+    meta.append(el('span', {}, item.source || 'zdroj neznámý'), el('span', {}, ago(item.publishedAt)));
+    return el('li', { className: 'story' }, a, meta);
+  }
+
+  function renderPanel() {
+    panel.replaceChildren();
+    if (!data) return;
+    const s = selected && data.states[selected];
+    if (s) {
+      const back = el('button', { type: 'button', className: 'back' }, 'Zpět na celé USA');
+      back.addEventListener('click', () => select(null));
+      panel.append(back, el('h2', {}, s.name), el('p', { className: 'sub' }, `${s.count} zpráv za posledních 48 hodin`));
+      if (s.error) panel.append(el('p', { className: 'error' }, `Poslední obnovení se nepovedlo: ${s.error}`));
+      if (!s.items.length) panel.append(el('p', { className: 'empty' }, 'Pro tento stát zatím nemáme žádné zprávy.'));
+      else panel.append(el('ol', {}, ...s.items.map((i) => storyItem(i))));
+    } else {
+      const all = Object.entries(data.states)
+        .flatMap(([code, st]) => st.items.map((i) => ({ ...i, code })))
+        .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+        .slice(0, 25);
+      panel.append(el('h2', {}, 'Nejnovější z celých USA'), el('p', { className: 'sub' }, 'Klikněte na stát pro jeho zprávy.'));
+      if (!all.length) panel.append(el('p', { className: 'empty' }, 'Server zprávy teprve stahuje, zkuste to za minutu.'));
+      else panel.append(el('ol', {}, ...all.map((i) => storyItem(i, i.code))));
+    }
+  }
+
+  function select(code) {
+    selected = code;
+    history.replaceState(null, '', code ? `#${code}` : location.pathname);
+    updateMap();
+    renderPanel();
+  }
+
+  function renderStatus() {
+    if (!data.updatedAt) {
+      statusEl.textContent = 'Server právě stahuje první zprávy…';
+      return;
+    }
+    const failed = Object.values(data.states).filter((s) => s.error).length;
+    statusEl.textContent = `Naposledy aktualizováno ${ago(data.updatedAt)}` + (failed ? `, u ${failed} států se obnova nepovedla` : '');
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('/api/news', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+      updateMap();
+      renderPanel();
+      renderStatus();
+    } catch (err) {
+      statusEl.textContent = `Zprávy se nepodařilo načíst (${err.message}). Zkusím to znovu.`;
+    }
+  }
+
+  buildMap();
+  load();
+  setInterval(load, REFRESH_MS);
+})();
+</script>
+</body>
+</html>
